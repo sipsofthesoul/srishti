@@ -894,10 +894,12 @@ body::before{
   pointer-events:auto;
 }
 
+/* ---- THE FIX ---- */
+
 .poem-card{
   position:relative;
   width:min(94%, 420px);
-  max-height:100%;
+  height:100%;
   min-height:0;
   display:flex;
   flex-direction:column;
@@ -932,17 +934,17 @@ body::before{
 
 .poem-scroll{
   position:relative;
-  flex:1 1 auto;
+  flex:1 1 0%;
   min-height:0;
   overflow:hidden;
 }
 
 .poem-body{
-  height:100%;
-  min-height:0;
+  position:absolute;
+  inset:0;
   overflow-y:auto;
   overflow-x:hidden;
-  padding-right:10px;
+  padding-right:12px;
   text-align:left;
   scrollbar-width:thin;
   scrollbar-color:#d98aa3 rgba(199, 98, 128, .10);
@@ -999,7 +1001,7 @@ body::before{
 
 .poem-fade{
   position:absolute;
-  left:0; right:10px; bottom:0;
+  left:0; right:12px; bottom:0;
   height:32px;
   pointer-events:none;
   opacity:0;
@@ -1007,10 +1009,11 @@ body::before{
   background:linear-gradient(180deg, rgba(251, 230, 238, 0), #fbe6ee 88%);
 }
 .poem-scroll.has-overflow .poem-fade{ opacity:1; }
+.poem-scroll.has-overflow.at-bottom .poem-fade{ opacity:0; }
 
 .poem-more{
   position:absolute;
-  right:14px;
+  right:18px;
   bottom:8px;
   font-family:'Caveat', cursive;
   font-size:clamp(12px, 2vmin, 15px);
@@ -1021,6 +1024,7 @@ body::before{
   animation:moreBob 1.9s ease-in-out infinite;
 }
 .poem-scroll.has-overflow .poem-more{ opacity:.8; }
+.poem-scroll.has-overflow.at-bottom .poem-more{ opacity:0; }
 
 @keyframes moreBob{
   0%, 100%{ transform:translateY(0); }
@@ -1338,8 +1342,9 @@ body::before{
   const envelopeWrap = document.getElementById('envelopeWrap');
   const envelope     = document.getElementById('envelope');
   const hint         = document.getElementById('hint');
-  const poemBody     = document.getElementById('poemBody');
-  const poemScroll   = document.getElementById('poemScroll');
+
+  let poemBody     = document.getElementById('poemBody');
+  let poemScroll   = document.getElementById('poemScroll');
 
   let giftOpened = false;
   let letterOpen = false;
@@ -1383,16 +1388,24 @@ body::before{
 
   function scheduleOverflowCheck() {
     if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(checkPoemOverflow);
+      requestAnimationFrame(updatePoemState);
     } else {
-      checkPoemOverflow();
+      updatePoemState();
     }
   }
 
-  function checkPoemOverflow() {
+  function updatePoemState() {
     if (!poemBody || !poemScroll) return;
     const hasOverflow = poemBody.scrollHeight > poemBody.clientHeight + 2;
     poemScroll.classList.toggle('has-overflow', hasOverflow);
+
+    if (hasOverflow) {
+      const atBottom =
+        poemBody.scrollTop + poemBody.clientHeight >= poemBody.scrollHeight - 4;
+      poemScroll.classList.toggle('at-bottom', atBottom);
+    } else {
+      poemScroll.classList.remove('at-bottom');
+    }
   }
 
   function loadPoem() {
@@ -1464,6 +1477,10 @@ body::before{
   window.addEventListener('orientationchange', () => setTimeout(fitStage, 100));
   fitStage();
   window.addEventListener('load', fitStage);
+
+  window.addEventListener('resize', scheduleOverflowCheck);
+  window.addEventListener('orientationchange', () => setTimeout(scheduleOverflowCheck, 150));
+
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => {
       fitStage();
@@ -1528,6 +1545,14 @@ body::before{
     clone.style.height = rect.height + 'px';
     clone.style.margin = '0';
     document.body.appendChild(clone);
+
+    const newBody   = clone.querySelector('.poem-body');
+    const newScroll = clone.querySelector('.poem-scroll');
+    if (newBody && newScroll) {
+      poemBody   = newBody;
+      poemScroll = newScroll;
+      poemBody.addEventListener('scroll', updatePoemState, { passive: true });
+    }
 
     letterEl.style.visibility = 'hidden';
     envelope.classList.add('tear');
@@ -1798,13 +1823,6 @@ body::before{
     gift.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
     });
-
-    window.addEventListener('resize', () => {
-      if (slide.classList.contains('opened')) scheduleOverflowCheck();
-    });
-    window.addEventListener('orientationchange', () => {
-      if (slide.classList.contains('opened')) setTimeout(scheduleOverflowCheck, 150);
-    });
   }
 
   const EMOJI = ['💗', '💕', '🌸', '✨', '🎀', '💖', '🎂', '💐'];
@@ -1845,6 +1863,7 @@ body::before{
     }
   }
 
+  if (poemBody) poemBody.addEventListener('scroll', updatePoemState, { passive: true });
   loadPoem();
 })();
 </script>
